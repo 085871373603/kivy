@@ -9,13 +9,15 @@ source.exclude_patterns = test_*.py,*.pyc,*.pyo,*.zip,README.md,requirements.txt
 version = 1.0.0
 
 # Kivy + Android; documents are opened through Android's system document picker.
+# NumPy requires Android minapi and NDK API >= 24; keep these values aligned.
 # Avoid READ_EXTERNAL_STORAGE / MANAGE_EXTERNAL_STORAGE: scoped storage is respected.
 requirements = python3,kivy,pandas,numpy,openpyxl,xlrd,odfpy,pyjnius
 orientation = portrait
 fullscreen = 0
 
 android.api = 35
-android.minapi = 23
+android.minapi = 24
+android.ndk_api = 24
 android.archs = arm64-v8a, armeabi-v7a
 android.accept_sdk_license = True
 android.allow_backup = True
