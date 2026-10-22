@@ -70,6 +70,32 @@ jobs:
           python -m pip install --upgrade buildozer
           buildozer --version
 
+      - name: Validate Android API settings for NumPy
+        run: |
+          python - <<'PY'
+          import configparser
+          import sys
+
+          cfg = configparser.ConfigParser(interpolation=None)
+          loaded = cfg.read("buildozer.spec", encoding="utf-8")
+          if not loaded:
+              raise SystemExit("ERROR: buildozer.spec tidak ditemukan")
+
+          minapi = cfg.getint("app", "android.minapi")
+          ndk_api = cfg.getint("app", "android.ndk_api", fallback=minapi)
+          print(f"android.minapi={minapi}; android.ndk_api={ndk_api}")
+          if minapi < 24 or ndk_api < 24:
+              raise SystemExit(
+                  "ERROR: NumPy memerlukan android.minapi dan android.ndk_api >= 24. "
+                  "Periksa buildozer.spec."
+              )
+          if minapi != ndk_api:
+              raise SystemExit(
+                  "ERROR: android.minapi dan android.ndk_api harus disamakan "
+                  "agar Buildozer mengirim --ndk-api yang sesuai."
+              )
+          PY
+
       - name: Build APK with detailed logs
         shell: bash
         run: |
