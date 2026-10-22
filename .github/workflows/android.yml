@@ -1,0 +1,129 @@
+name: Test and build Excel Vault APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    name: Python data tests
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install openpyxl xlrd odfpy pytest
+
+      - name: Run automated tests
+        run: python -m pytest -v test_main.py
+
+  android-apk:
+    name: Build Android APK (verbose logs)
+    runs-on: ubuntu-22.04
+    needs: tests
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android build system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ccache git zip unzip \
+            autoconf automake autopoint gettext \
+            libtool libtool-bin libltdl-dev pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 \
+            cmake libffi-dev libssl-dev libsqlite3-dev
+
+      - name: Install Buildozer
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade buildozer
+          buildozer --version
+
+      - name: Validate lean Android requirements
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          spec = Path("buildozer.spec").read_text(encoding="utf-8")
+          requirements_line = next(
+              line.split("=", 1)[1].strip()
+              for line in spec.splitlines()
+              if line.strip().startswith("requirements =")
+          )
+          print("Android requirements:", requirements_line)
+          forbidden = {"pandas", "numpy"}.intersection(
+              item.strip().lower() for item in requirements_line.split(",")
+          )
+          if forbidden:
+              raise SystemExit("ERROR: pandas/numpy masih terdaftar: " + ", ".join(sorted(forbidden)))
+          if "arm64-v8a" not in spec:
+              raise SystemExit("ERROR: android.archs harus menyertakan arm64-v8a")
+          PY
+
+      - name: Build APK with detailed logs
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          buildozer -v android debug 2>&1 | tee buildozer.log
+          result=${PIPESTATUS[0]}
+          echo "Buildozer exit code: $result"
+          echo "===== FIRST ERROR MATCHES ====="
+          grep -n -m 30 -E 'Traceback|ERROR|Error|FAILED|Failed|not found|No such file|undefined reference|fatal error' buildozer.log || true
+          echo "===== FINAL BUILD LOG LINES ====="
+          tail -n 180 buildozer.log || true
+          exit "$result"
+
+      - name: Upload build log for troubleshooting
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: excel-vault-build-log
+          path: buildozer.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: excel-vault-android-apk
+          path: bin/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') && success()
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/*.apk
