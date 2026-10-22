@@ -10,6 +10,7 @@ Aplikasi lokal untuk menyimpan dan mencari teks di dalam file Excel/spreadsheet.
 - Mendukung `.xlsx`, `.xlsm`, `.xls`, `.ods`, dan `.csv` sesuai engine yang dipaketkan.
 - Dashboard tetap mencari di isi sel, bukan judul kolom. Hasil menunjukkan sel yang cocok sekaligus semua nilai pada baris tersebut.
 - Data layer dipisah dalam `vault_core.py` agar fungsi pembacaan, pencarian, dan penyimpanan bisa diuji tanpa menjalankan antarmuka Kivy.
+- Lapisan data **tidak memakai `pandas` atau `numpy`**. Pembacaan dilakukan langsung melalui `openpyxl` (XLSX/XLSM), `xlrd` (XLS), `odfpy` (ODS), dan modul `csv` bawaan Python. Ini mengurangi komponen native yang harus dikompilasi ketika membuat APK.
 
 ## Struktur proyek
 
@@ -24,12 +25,18 @@ excel_vault_android/
 └── .github/workflows/android.yml
 ```
 
+## Konfigurasi Android dan dependensi build
+
+Konfigurasi saat ini menetapkan Android API target 35, minimum API 24, NDK API 24, dan arsitektur `arm64-v8a`. NumPy/pandas sudah dikeluarkan dari dependensi aplikasi agar build Android tidak perlu mengompilasi kedua pustaka tersebut. Karena hanya `arm64-v8a` yang dibangun, perangkat Android 32-bit saja tidak didukung oleh APK ini.
+
+Jika GitHub Actions masih gagal, pesan `Buildozer failed to execute the last command` hanyalah ringkasan. Buka artifact `excel-vault-build-log` dan cari pesan `ERROR`, `Traceback`, `FAILED`, atau `fatal error` pertama yang muncul sebelumnya. Workflow terbaru juga mencetak ringkasan error ke log job.
+
 ## Pengujian otomatis
 
 Python 3.11 direkomendasikan untuk tes lokal:
 
 ```bash
-python -m pip install pandas numpy openpyxl odfpy pytest
+python -m pip install openpyxl xlrd odfpy pytest
 python -m pytest -v test_main.py
 ```
 
@@ -50,7 +57,7 @@ GitHub Actions memerlukan semua berkas sumber dan file workflow. Lewat browser, 
 1. Dari halaman repository, pilih **Add file → Upload files**.
 2. Unggah `main.py`, `vault_core.py`, `test_main.py`, `requirements.txt`, `buildozer.spec`, `README.md`, dan `.gitignore`, lalu commit ke branch `main`.
 3. Buat workflow dengan memilih **Add file → Create new file**. Untuk nama file, ketik tepat: `.github/workflows/android.yml`. Tempel isi file `android.yml` dari folder proyek, lalu commit.
-4. Pastikan di repository terdapat path `.github/workflows/android.yml` (bukan `android.yml` di folder utama). Workflow akan menjalankan tes terlebih dahulu dan hanya membangun APK jika tes lulus.
+4. Pastikan di repository terdapat path `.github/workflows/android.yml` (bukan `android.yml` di folder utama). Workflow akan menjalankan tes terlebih dahulu dan hanya membangun APK jika tes lulus. Workflow yang disediakan menjalankan Buildozer langsung di runner Ubuntu agar pesan kegagalan lebih lengkap daripada wrapper Docker.
 
 > Catatan: jika uploader browser menyembunyikan folder `.github`, buat file workflow melalui **Create new file** seperti langkah 3.
 
@@ -60,9 +67,10 @@ GitHub Actions memerlukan semua berkas sumber dan file workflow. Lewat browser, 
 2. Pilih workflow **Test and build Excel Vault APK**. Jika tidak berjalan otomatis setelah commit, tekan **Run workflow**.
 3. Buka proses terbaru. Tunggu sampai job `Python data tests` dan `Build Android APK` sama-sama berstatus hijau.
 4. Pada bagian **Artifacts**, unduh `excel-vault-android-apk`. Unduhan artifact biasanya berupa ZIP; ekstrak ZIP tersebut sampai terlihat file berakhiran `.apk`.
-5. Jika membuat tag GitHub yang diawali `v`, contohnya `v1.0.0`, workflow yang berhasil juga melampirkan APK ke halaman **Releases**.
+5. Jika build gagal, tetap buka **Artifacts** dan unduh `excel-vault-build-log` untuk melihat log Buildozer terperinci. Cari pesan `ERROR`, `Traceback`, atau `FAILED` pertama yang muncul sebelum baris akhir `Build failed`.
+6. Jika membuat tag GitHub yang diawali `v`, contohnya `v1.0.0`, workflow yang berhasil juga melampirkan APK ke halaman **Releases**.
 
-GitHub Actions membangun APK di server GitHub; Anda tidak perlu memasang Android SDK, NDK, Buildozer, atau menjalankan perintah terminal di ponsel.
+GitHub Actions membangun APK di server GitHub; Anda tidak perlu memasang Android SDK, NDK, Buildozer, atau menjalankan perintah terminal di ponsel. Workflow menjalankan build secara langsung pada runner Ubuntu dan memasang dependensi sistem build (termasuk `autopoint`/`gettext`) untuk mengurangi kegagalan recipe native; ini belum menjamin build berhasil tanpa memeriksa log aktual.
 
 ## Memasang APK di Android
 
