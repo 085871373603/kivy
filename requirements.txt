@@ -1,5 +1,0 @@
-kivy
-openpyxl
-xlrd
-odfpy
-pytest
