@@ -9,7 +9,7 @@ Setiap hasil menampilkan **sel** yang cocok beserta **seluruh baris** dari sel i
 | Berkas | Fungsi |
 |---|---|
 | `main.py` | Seluruh aplikasi |
-| `test_main.py` | 82 uji otomatis (jalan di GitHub sebelum APK dibangun) |
+| `test_main.py` | 83 uji otomatis (jalan di GitHub sebelum APK dibangun) |
 | `buildozer.spec` | Konfigurasi APK Android |
 | `.github/workflows/build-apk.yml` | Robot GitHub: uji, bangun APK, lampirkan ke Release |
 | `requirements.txt` | Dependensi untuk menjalankan di komputer |
