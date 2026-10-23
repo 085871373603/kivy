@@ -1,0 +1,100 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Uji otomatis
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest openpyxl pyyaml
+      - run: pytest -v test_main.py
+
+  build:
+    name: Bangun APK
+    needs: test
+    # APK hanya dibangun saat rilis (tag v*) atau dijalankan manual.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Pasang dependensi sistem
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev automake
+
+      - name: Cache SDK/NDK dan hasil build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: buildozer-${{ runner.os }}-
+
+      - name: Pasang Buildozer
+        run: pip install --upgrade buildozer "cython==0.29.34" setuptools virtualenv
+
+      - name: Bangun APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "Kunci rilis ditemukan: membangun APK rilis bertanda tangan tetap."
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            export P4A_RELEASE_KEYSTORE="$RUNNER_TEMP/release.keystore"
+            export P4A_RELEASE_KEYSTORE_PASSWD="$KEYSTORE_PASSWORD"
+            export P4A_RELEASE_KEYALIAS="$KEY_ALIAS"
+            export P4A_RELEASE_KEYALIAS_PASSWD="$KEY_PASSWORD"
+            buildozer -v android release
+          else
+            echo "::warning::Tanpa kunci rilis: APK debug dengan tanda tangan acak. Pembaruan di atas versi lama bisa ditolak Android."
+            buildozer -v android debug
+          fi
+          ls -la bin
+          mkdir -p dist
+          APK="$(ls bin/*.apk | head -n 1)"
+          case "$APK" in *unsigned*) echo "APK tidak bertanda tangan: $APK"; exit 1;; esac
+          cp "$APK" "dist/ExcelVault-${GITHUB_REF_NAME//\//-}.apk"
+
+      - name: Unggah sebagai artefak
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExcelVault-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Lampirkan APK ke halaman Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true
