@@ -780,8 +780,14 @@ class TestPackaging:
         assert all(isinstance(v, str) for v in py)                           # '3.11' bukan angka 3.11
         text = (HERE / ".github" / "workflows" / "build-apk.yml").read_text(encoding="utf-8")
         for token in ("buildozer -v android debug", "buildozer -v android release", "P4A_RELEASE_KEYSTORE",
-                      "P4A_RELEASE_KEYALIAS_PASSWD", "libffi-dev", "libtinfo6", "pytest -v test_main.py"):
+                      "P4A_RELEASE_KEYALIAS_PASSWD", "libffi-dev", "libtinfo6", "pytest -v test_main.py",
+                      "libltdl-dev",                      # tanpa ini libffi gagal: 'possibly undefined macro: LT_SYS_SYMBOL_USCORE'
+                      "tee -a build.log", "GITHUB_STEP_SUMMARY", "prerelease"):
             assert token in text, token
+        by_name = {x.get("name", ""): x for x in wf["jobs"]["build"]["steps"]}
+        assert by_name["Ringkasan penyebab error (hanya bila gagal)"]["if"] == "failure()"   # diagnosis otomatis
+        save = next(x for x in wf["jobs"]["build"]["steps"] if x.get("uses", "").startswith("actions/cache/save"))
+        assert save["if"] == "always()"                                                       # cache tersimpan walau gagal
 
     def test_readme_memuat_alur_instalasi(self):
         r = (HERE / "README.md").read_text(encoding="utf-8")
