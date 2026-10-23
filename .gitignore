@@ -1,6 +1,0 @@
-.buildozer/
-bin/
-__pycache__/
-.pytest_cache/
-*.py[cod]
-storage/
