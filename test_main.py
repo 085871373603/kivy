@@ -749,6 +749,9 @@ class TestPackaging:
         assert a["android.release_artifact"] == "apk" and int(a["android.minapi"]) >= 21
         assert "MANAGE_EXTERNAL_STORAGE" not in a.get("android.permissions", "")  # tidak perlu izin storage
         assert "test_*.py" in a["source.exclude_patterns"] and "py" in a["source.include_exts"]
+        # alat build dikunci: p4a 2026 rusak ('No matching distribution found for pyjnius==1.7.0', issue #3342)
+        assert a["p4a.branch"] == "v2024.01.21" and a["android.ndk"] == "25b" and a["android.api"] == "33"
+        assert "kivy==2.3.0" in a["requirements"]
 
     def test_semua_impor_pihak_ketiga_ada_di_requirements(self):
         names = set()
@@ -788,6 +791,10 @@ class TestPackaging:
         assert by_name["Ringkasan penyebab error (hanya bila gagal)"]["if"] == "failure()"   # diagnosis otomatis
         save = next(x for x in wf["jobs"]["build"]["steps"] if x.get("uses", "").startswith("actions/cache/save"))
         assert save["if"] == "always()"                                                       # cache tersimpan walau gagal
+        rest = next(x for x in wf["jobs"]["build"]["steps"] if x.get("uses", "").startswith("actions/cache/restore"))
+        keys = [rest["with"]["key"]] + rest["with"]["restore-keys"].strip().splitlines()
+        assert all("p4a2024" in k for k in keys)    # cache lama (alat 2026 yang rusak) tidak boleh dipulihkan
+        assert "p4a2024" in save["with"]["key"] and "Command failed" in text
 
     def test_readme_memuat_alur_instalasi(self):
         r = (HERE / "README.md").read_text(encoding="utf-8")
