@@ -637,17 +637,18 @@ class TestFormats:
         assert [main.kind_of(x) for x in (a, b, c, d, env.tmp / "tidak-ada")] == ["xlsx", "ods", "xls", None, None]
         assert main.read_sheets(a)["Data"].rows[0][0] == "Budi Santoso"  # xlsx tanpa ekstensi tetap terbaca
 
-    def test_xlsx_dengan_dimensi_salah_tetap_terbaca_penuh(self, env, sample):
+    @pytest.mark.parametrize("penutup", ["/>", " />"])  # openpyxl menulis salah satunya, tergantung ada/tidaknya lxml
+    def test_xlsx_dengan_dimensi_salah_tetap_terbaca_penuh(self, env, sample, penutup):
         out = env.tmp / "dimensi.xlsx"
         with zipfile.ZipFile(sample) as zi, zipfile.ZipFile(out, "w") as zo:
-            changed = False
+            n = 0
             for item in zi.infolist():
                 data = zi.read(item.filename)
                 if item.filename == "xl/worksheets/sheet1.xml":
-                    assert b'<dimension ref="A1:C5"/>' in data
-                    data = data.replace(b'<dimension ref="A1:C5"/>', b'<dimension ref="A1"/>'); changed = True
+                    data, n = re.subn(rb'<dimension ref="[^"]*"\s*/>', b'<dimension ref="A1"' + penutup.encode(), data)
                 zo.writestr(item, data)
-        assert changed and len(main.read_sheets(out)["Data"].rows) == 4
+        assert n == 1                                        # tag dimensi benar-benar diganti
+        assert len(main.read_sheets(out)["Data"].rows) == 4  # tanpa reset_dimensions hanya sel A1 yang terbaca
 
 
 # --------------------------------------------- 8. Android: penyimpanan & pemilih file
