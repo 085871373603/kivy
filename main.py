@@ -14,7 +14,7 @@ Alur
 
 Baris pertama yang berisi data dianggap judul kolom (tidak ikut dicari).
 Penyimpanan lokal: folder data aplikasi (App.user_data_dir)/storage. Di Android ini
-penyimpanan privat aplikasi: tidak butuh izin, tetap ada setelah aplikasi ditutup.
+penyimpanan privat aplikasi: tidak butuh izin, tetap ada setelah aplikasi dditutup.
 """
 import csv
 import io
