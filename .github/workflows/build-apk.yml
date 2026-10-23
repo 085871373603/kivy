@@ -25,7 +25,7 @@ jobs:
   build:
     name: Bangun APK
     needs: test
-    # APK hanya dibangun saat rilis (tag v*) atau dijalankan manual.
+    # APK dibangun saat rilis (tag v*, huruf v KECIL) atau saat tombol "Run workflow" ditekan.
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -45,16 +45,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev automake
+            libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev automake \
+            libltdl-dev
 
-      - name: Cache SDK/NDK dan hasil build
-        uses: actions/cache@v4
+      - name: Pulihkan cache SDK/NDK dan hasil kompilasi
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/.buildozer
             .buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-          restore-keys: buildozer-${{ runner.os }}-
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-${{ github.run_id }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-
+            buildozer-${{ runner.os }}-
 
       - name: Pasang Buildozer
         run: pip install --upgrade buildozer "cython==0.29.34" setuptools virtualenv
@@ -74,16 +77,56 @@ jobs:
             export P4A_RELEASE_KEYSTORE_PASSWD="$KEYSTORE_PASSWORD"
             export P4A_RELEASE_KEYALIAS="$KEY_ALIAS"
             export P4A_RELEASE_KEYALIAS_PASSWD="$KEY_PASSWORD"
-            buildozer -v android release
+            buildozer -v android release 2>&1 | tee -a build.log
           else
             echo "::warning::Tanpa kunci rilis: APK debug dengan tanda tangan acak. Pembaruan di atas versi lama bisa ditolak Android."
-            buildozer -v android debug
+            buildozer -v android debug 2>&1 | tee -a build.log
           fi
           ls -la bin
           mkdir -p dist
           APK="$(ls bin/*.apk | head -n 1)"
           case "$APK" in *unsigned*) echo "APK tidak bertanda tangan: $APK"; exit 1;; esac
           cp "$APK" "dist/ExcelVault-${GITHUB_REF_NAME//\//-}.apk"
+
+      - name: Simpan cache (juga saat gagal, agar percobaan ulang jauh lebih cepat)
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-${{ github.run_id }}
+
+      - name: Ringkasan penyebab error (hanya bila gagal)
+        if: failure()
+        run: |
+          {
+            echo "## Build gagal: petunjuk penyebab"
+            echo
+            echo "Baris yang memuat error (maksimal 40, peringatan biasa disaring):"
+            echo '```'
+            sed -E 's/\x1b\[[0-9;]*m//g' build.log 2>/dev/null \
+              | grep -n -i -E "error:|fatal error|Traceback|No space left|Command failed|ModuleNotFoundError" \
+              | grep -v -i -E "obsolete|DeprecationWarning|warning:" | head -n 40 || true
+            echo '```'
+            echo
+            echo "Ruang disk server:"
+            echo '```'
+            df -h / | tail -n 2
+            echo '```'
+            echo
+            echo "Log lengkap: artefak **build-log** di bagian bawah halaman ini."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Unggah log lengkap (hanya bila gagal)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Unggah sebagai artefak
         uses: actions/upload-artifact@v4
@@ -92,10 +135,12 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
-      - name: Lampirkan APK ke halaman Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Terbitkan APK di halaman Releases
+        # Tag v*  -> Release biasa. Tombol "Run workflow" -> pre-release otomatis bernama build-<nomor>.
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           files: dist/*.apk
           generate_release_notes: true
-
