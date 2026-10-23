@@ -54,10 +54,10 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-${{ github.run_id }}
+          key: buildozer-p4a2024-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-${{ github.run_id }}
           restore-keys: |
-            buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-
-            buildozer-${{ runner.os }}-
+            buildozer-p4a2024-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-
+            buildozer-p4a2024-${{ runner.os }}-
 
       - name: Pasang Buildozer
         run: pip install --upgrade buildozer "cython==0.29.34" setuptools virtualenv
@@ -96,26 +96,33 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-${{ github.run_id }}
+          key: buildozer-p4a2024-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-${{ github.run_id }}
 
       - name: Ringkasan penyebab error (hanya bila gagal)
         if: failure()
         run: |
+          sed -E 's/\x1b\[[0-9;]*m//g' build.log > build.clean.log 2>/dev/null || true
           {
             echo "## Build gagal: petunjuk penyebab"
             echo
-            echo "Baris yang memuat error (maksimal 40, peringatan biasa disaring):"
+            N=$(grep -n "Command failed" build.clean.log | tail -n 1 | cut -d: -f1 || true)
+            if [ -n "${N:-}" ]; then
+              START=$(( N > 45 ? N - 45 : 1 ))
+              echo "### 45 baris tepat sebelum kegagalan terakhir"
+              echo '```'
+              sed -n "${START},${N}p" build.clean.log | cut -c1-200
+              echo '```'
+            fi
+            echo "### 25 baris error terakhir (baris kompilasi biasa disaring)"
             echo '```'
-            sed -E 's/\x1b\[[0-9;]*m//g' build.log 2>/dev/null \
-              | grep -n -i -E "error:|fatal error|Traceback|No space left|Command failed|ModuleNotFoundError" \
-              | grep -v -i -E "obsolete|DeprecationWarning|warning:" | head -n 40 || true
+            grep -n -i -E "error:|fatal error|Traceback|No space left|Command failed|ModuleNotFoundError|No matching distribution" build.clean.log \
+              | grep -v -i -E "obsolete|DeprecationWarning|warning:|\]: +(gcc|clang|ar |/usr/bin/install|Compiling)" \
+              | tail -n 25 | cut -c1-200 || true
             echo '```'
-            echo
-            echo "Ruang disk server:"
+            echo "### Ruang disk server"
             echo '```'
             df -h / | tail -n 2
             echo '```'
-            echo
             echo "Log lengkap: artefak **build-log** di bagian bawah halaman ini."
           } >> "$GITHUB_STEP_SUMMARY"
 
