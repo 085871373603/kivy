@@ -76,11 +76,14 @@ Tanda centang hijau berarti kode sehat. APK belum dibangun pada tahap ini, hanya
 2. **Choose a tag**: ketik `v1.0.0` lalu pilih **Create new tag: v1.0.0 on publish**.
 3. Isi judul, misalnya `Excel Vault 1.0.0`, lalu **Publish release**.
 4. Buka tab **Actions**: job **Bangun APK** berjalan. Build pertama memakan **30 sampai 60 menit** (mengunduh Android SDK/NDK dan
-   mengompilasi untuk dua jenis CPU). Build berikutnya jauh lebih cepat berkat cache.
+   mengompilasi untuk CPU arm64, yaitu hampir semua HP sejak 2017). Build berikutnya jauh lebih cepat berkat cache.
+   **Awas huruf besar:** tag harus `v1.0.0` dengan **v kecil**. Keyboard HP sering mengubahnya menjadi `V1.0.0`, dan tag itu
+   tidak memicu build.
 5. Setelah hijau, muat ulang halaman Release: berkas **`ExcelVault-v1.0.0.apk`** muncul di **Assets**.
 
-Alternatif tanpa Release: **Actions → Build Android APK → Run workflow**, lalu unduh artefak `ExcelVault-apk`
-dari halaman run tersebut (berbentuk ZIP dan butuh login GitHub).
+**Cara tercepat untuk mencoba, tanpa membuat tag:** **Actions → Build Android APK → Run workflow → Run workflow** (cabang `main`).
+Hasilnya muncul otomatis sebagai pre-release bernama `build-<nomor>` di **Releases**, lengkap dengan file APK-nya.
+Jika tombol **Run workflow** tidak terlihat di HP, aktifkan **Desktop site** di menu Chrome.
 
 ### Langkah 6 — Instal di HP
 1. Di HP, buka halaman Release repository Anda lewat Chrome, lalu ketuk **ExcelVault-v1.0.0.apk**. Jika muncul peringatan
@@ -124,7 +127,9 @@ Pengujian memakai Kivy tiruan, jadi tidak membuka jendela dan bisa berjalan di s
 ## Pemecahan masalah
 | Gejala | Penyebab dan solusi |
 |---|---|
-| Job **Bangun APK** merah | Buka run tersebut → langkah **Bangun APK** → salin sekitar 40 baris terakhir log dan kirim ke pengembang. |
+| Job **Bangun APK** merah | Buka halaman **Summary** run tersebut: bagian **Build gagal: petunjuk penyebab** berisi baris error yang relevan. Log lengkap ada di artefak **build-log**. Kirim ringkasan itu ke pengembang. |
+| Membuat Release tetapi APK tidak muncul | Cek huruf tag: harus `v` kecil (`v1.0.0`), bukan `V1.0.0`. Atau pakai **Run workflow** (lihat Langkah 5). |
+| Ingin mendukung HP 32-bit lama | Di `buildozer.spec`, ubah `android.archs` menjadi `arm64-v8a, armeabi-v7a` (build jadi sekitar dua kali lebih lama). |
 | "App not installed" saat memperbarui | Tanda tangan berbeda (Langkah 2 dilewati). Pilih uninstall (data hilang) lalu instal ulang, dan siapkan kunci tetap agar tidak terulang. |
 | File tidak terlihat di pemilih file | Ketuk menu ☰ di pojok pemilih, lalu pilih sumber (Downloads, Drive, Dokumen). |
 | "Sebagian file dilewati" | Formatnya bukan xlsx, xls, ods, atau csv, atau file rusak/kosong. |
