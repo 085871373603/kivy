@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pytest openpyxl pyyaml
+      - run: pip install pytest pyyaml
       - run: pytest -v test_main.py
 
   build:
@@ -86,7 +86,7 @@ jobs:
           mkdir -p dist
           APK="$(ls bin/*.apk | head -n 1)"
           case "$APK" in *unsigned*) echo "APK tidak bertanda tangan: $APK"; exit 1;; esac
-          cp "$APK" "dist/ExcelVault-${GITHUB_REF_NAME//\//-}.apk"
+          cp "$APK" "dist/StockOpname-${GITHUB_REF_NAME//\//-}.apk"
 
       - name: Simpan cache (juga saat gagal, agar percobaan ulang jauh lebih cepat)
         if: always()
@@ -138,7 +138,7 @@ jobs:
       - name: Unggah sebagai artefak
         uses: actions/upload-artifact@v4
         with:
-          name: ExcelVault-apk
+          name: StockOpname-apk
           path: dist/*.apk
           if-no-files-found: error
 
