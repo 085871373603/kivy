@@ -86,7 +86,7 @@ jobs:
           mkdir -p dist
           APK="$(ls bin/*.apk | head -n 1)"
           case "$APK" in *unsigned*) echo "APK tidak bertanda tangan: $APK"; exit 1;; esac
-          cp "$APK" "dist/StockOpname-${GITHUB_REF_NAME//\//-}.apk"
+          cp "$APK" "dist/TimerMaxdis-${GITHUB_REF_NAME//\//-}.apk"
 
       - name: Simpan cache (juga saat gagal, agar percobaan ulang jauh lebih cepat)
         if: always()
@@ -138,7 +138,7 @@ jobs:
       - name: Unggah sebagai artefak
         uses: actions/upload-artifact@v4
         with:
-          name: StockOpname-apk
+          name: TimerMaxdis-apk
           path: dist/*.apk
           if-no-files-found: error
 
