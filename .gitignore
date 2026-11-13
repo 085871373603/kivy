@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.buildozer/
+bin/
+dist/
+store/
+.pytest_cache/
+*.keystore
+*.b64
+node_modules/
