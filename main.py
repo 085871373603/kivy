@@ -1,5 +1,5 @@
 """
-TIMER MAXDIS (Kivy) - versi native dari index.html (PWA) milik pengguna.
+TIMER MAXDIS (Kivy)
 
   logic.py : port logika inti dari JavaScript asli (dibuktikan sama persis lewat golden.json)
   main.py  : Controller (alur aplikasi, tanpa widget -> bisa diuji) + antarmuka Kivy
@@ -523,7 +523,7 @@ class RootView(FloatLayout):
         box = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
         box.add_widget(Label(text="Alamat halaman TIMER MAXDIS di server Anda\n(persis seperti di browser).\nTombol MENU akan membuka menu.html dari alamat ini.",
                              color=(0.2, 0.2, 0.2, 1), halign="center", font_size=dp(13)))
-        field = TextInput(text=current, hint_text="https://domain-anda.com/timer/", multiline=False, size_hint_y=None, height=dp(44),
+        field = TextInput(text=current, hint_text="https://apktoko.arinex.my.id/menu.html/", multiline=False, size_hint_y=None, height=dp(44),
                           write_tab=False, input_type="url")
         box.add_widget(field)
         row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
