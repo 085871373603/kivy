@@ -1,6 +1,6 @@
 [app]
-title = TIMER MAKDIS
-package.name = timermakdis kivy
+title = TIMER MAKDIS KIVY
+package.name = timermaxdis
 package.domain = org.timermaxdis
 source.dir = .
 source.include_exts = py
