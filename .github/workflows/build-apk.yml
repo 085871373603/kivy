@@ -16,14 +16,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-
   # ==========================================
   # JOB 1: UJI OTOMATIS
   # ==========================================
   test:
     name: Uji otomatis
     runs-on: ubuntu-24.04
-
     steps:
       - name: Ambil repository
         uses: actions/checkout@v4
@@ -41,123 +39,62 @@ jobs:
       - name: Jalankan pengujian
         run: pytest -v test_main.py
 
-
   # ==========================================
   # JOB 2: BANGUN APK
   # ==========================================
   build:
     name: Bangun APK
-
     needs: test
 
-    # BUILD OTOMATIS:
-    # 1. Push ke main
-    # 2. Push tag v*
-    # 3. Run workflow manual
-    #
-    # Pull request hanya menjalankan pengujian.
-
-    if: >-
-      ${{
-        success() &&
-        needs.test.result == 'success' &&
-        (
-          github.event_name == 'push' ||
-          github.event_name == 'workflow_dispatch'
-        )
-      }}
+    # Build dijalankan setelah test berhasil untuk push ke main, tag v*,
+    # dan workflow_dispatch. Pull request hanya menjalankan test.
+    if: ${{ success() && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') }}
 
     runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
-
-      # --------------------------------------
-      # CHECKOUT
-      # --------------------------------------
       - name: Ambil repository
         uses: actions/checkout@v4
 
-
-      # --------------------------------------
-      # PYTHON
-      # --------------------------------------
       - name: Siapkan Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-
-      # --------------------------------------
-      # JAVA
-      # --------------------------------------
       - name: Siapkan Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-
-      # --------------------------------------
-      # SISTEM DEPENDENCIES
-      # --------------------------------------
       - name: Pasang dependensi sistem
         run: |
           sudo apt-get update
-
           sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo6 \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            automake \
-            libltdl-dev
+            git zip unzip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev \
+            libssl-dev automake libltdl-dev
 
-
-      # --------------------------------------
-      # CACHE BUILDOZER
-      # --------------------------------------
-      - name: Pulihkan cache SDK NDK dan hasil kompilasi
+      - name: Pulihkan cache SDK/NDK dan hasil kompilasi
         uses: actions/cache/restore@v4
-
         with:
           path: |
             ~/.buildozer
             .buildozer
-
           key: buildozer-p4a2024-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-${{ github.run_id }}
-
           restore-keys: |
             buildozer-p4a2024-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-
             buildozer-p4a2024-${{ runner.os }}-
 
-
-      # --------------------------------------
-      # BUILDOZER
-      # --------------------------------------
       - name: Pasang Buildozer
         run: |
           python -m pip install --upgrade pip
+          pip install --upgrade buildozer "cython==0.29.34" setuptools virtualenv
 
-          pip install \
-            buildozer \
-            "cython==0.29.34" \
-            setuptools \
-            virtualenv
-
-
-      # --------------------------------------
+      # ======================================
       # BUILD APK
-      # --------------------------------------
+      # ======================================
       - name: Bangun APK
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -168,26 +105,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p dist
+          mkdir -p bin dist
+          : > build.log
 
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "Kunci rilis ditemukan: membangun APK release."
 
-            echo "Kunci rilis ditemukan."
-
-            # Validasi seluruh konfigurasi signing.
             if [ -z "${KEYSTORE_PASSWORD:-}" ] || \
                [ -z "${KEY_ALIAS:-}" ] || \
                [ -z "${KEY_PASSWORD:-}" ]; then
-              echo "::error::Konfigurasi signing belum lengkap."
+              echo "::error::Secret signing belum lengkap."
               exit 1
             fi
 
-            # Siapkan keystore.
-            printf '%s' "$KEYSTORE_BASE64" \
-              | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
 
             if [ ! -s "$RUNNER_TEMP/release.keystore" ]; then
-              echo "::error::File keystore kosong atau tidak valid."
+              echo "::error::Keystore kosong atau tidak valid."
               exit 1
             fi
 
@@ -196,40 +130,25 @@ jobs:
             export P4A_RELEASE_KEYALIAS="$KEY_ALIAS"
             export P4A_RELEASE_KEYALIAS_PASSWD="$KEY_PASSWORD"
 
-            echo "Memulai build APK release..."
-
             buildozer -v android release 2>&1 | tee -a build.log
 
           else
-
-            echo "::warning::Keystore belum tersedia. Menggunakan tanda tangan debug."
-
-            echo "Memulai build APK debug..."
+            echo "::warning::Keystore belum tersedia; menggunakan APK debug."
 
             buildozer -v android debug 2>&1 | tee -a build.log
-
           fi
 
-          # ----------------------------------
-          # VALIDASI OUTPUT
-          # ----------------------------------
-
+          # Validasi APK
           echo "Memeriksa hasil kompilasi..."
 
-          APK="$(find bin -maxdepth 1 -type f \
-            -name '*.apk' \
-            ! -name '*unsigned*' \
-            | sort | head -n 1)"
+          APK="$(find bin -maxdepth 1 -type f -name '*.apk' ! -name '*unsigned*' | sort | head -n 1)"
 
           if [ -z "$APK" ]; then
-            echo "::error::APK tidak ditemukan."
+            echo "::error::APK bertanda tangan tidak ditemukan di folder bin/."
             ls -la bin || true
             exit 1
           fi
 
-          echo "APK ditemukan: $APK"
-
-          # Nama file aman untuk branch atau tag.
           SAFE_REF="${GITHUB_REF_NAME//\//-}"
 
           cp "$APK" "dist/TimerMaxdis-${SAFE_REF}.apk"
@@ -237,129 +156,99 @@ jobs:
           echo "APK berhasil disiapkan:"
           ls -lh dist/
 
-
-      # --------------------------------------
-      # SIMPAN CACHE
-      # --------------------------------------
-      - name: Simpan cache Buildozer
+      # ======================================
+      # CACHE
+      # ======================================
+      - name: Simpan cache (juga saat gagal, agar percobaan ulang jauh lebih cepat)
         if: always()
         continue-on-error: true
-
         uses: actions/cache/save@v4
-
         with:
           path: |
             ~/.buildozer
             .buildozer
-
           key: buildozer-p4a2024-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}-${{ github.run_id }}
 
-
-      # --------------------------------------
+      # ======================================
       # ERROR SUMMARY
-      # --------------------------------------
-      - name: Ringkasan penyebab error
+      # ======================================
+      - name: Ringkasan penyebab error (hanya bila gagal)
         if: failure()
-
         run: |
-          sed -E 's/\x1b\[[0-9;]*m//g' \
-            build.log > build.clean.log 2>/dev/null || true
+          sed -E 's/\x1b\[[0-9;]*m//g' build.log > build.clean.log 2>/dev/null || true
 
           {
-            echo "## Build APK gagal"
+            echo "## Build gagal: petunjuk penyebab"
             echo
 
-            N=$(grep -n "Command failed" build.clean.log \
-              | tail -n 1 | cut -d: -f1 || true)
+            N=$(grep -n "Command failed" build.clean.log | tail -n 1 | cut -d: -f1 || true)
 
             if [ -n "${N:-}" ]; then
-
               START=$(( N > 45 ? N - 45 : 1 ))
 
-              echo "### Baris sebelum kegagalan"
+              echo "### 45 baris tepat sebelum kegagalan terakhir"
               echo '```'
 
-              sed -n "${START},${N}p" build.clean.log \
-                | cut -c1-200
+              sed -n "${START},${N}p" build.clean.log | cut -c1-200
 
               echo '```'
-
             fi
 
-            echo "### Pesan error terakhir"
+            echo "### 25 baris error terakhir (baris kompilasi biasa disaring)"
             echo '```'
 
-            grep -n -i -E \
-              "error:|fatal error|Traceback|No space left|Command failed|ModuleNotFoundError|No matching distribution" \
-              build.clean.log \
-              | grep -v -i -E \
-              "obsolete|DeprecationWarning|warning:|\]: +(gcc|clang|ar |/usr/bin/install|Compiling)" \
-              | tail -n 25 \
-              | cut -c1-200 || true
+            grep -n -i -E "error:|fatal error|Traceback|No space left|Command failed|ModuleNotFoundError|No matching distribution" build.clean.log \
+              | grep -v -i -E "obsolete|DeprecationWarning|warning:|\]: +(gcc|clang|ar |/usr/bin/install|Compiling)" \
+              | tail -n 25 | cut -c1-200 || true
 
             echo '```'
 
-            echo "### Ruang disk"
+            echo "### Ruang disk server"
             echo '```'
 
             df -h / | tail -n 2
 
             echo '```'
 
-            echo "Log lengkap tersedia pada artefak build-log."
+            echo "Log lengkap tersedia pada artefak **build-log**."
 
           } >> "$GITHUB_STEP_SUMMARY"
 
-
-      # --------------------------------------
+      # ======================================
       # UPLOAD LOG JIKA GAGAL
-      # --------------------------------------
-      - name: Unggah log lengkap
+      # ======================================
+      - name: Unggah log lengkap (hanya bila gagal)
         if: failure()
-
         uses: actions/upload-artifact@v4
-
         with:
           name: build-log
           path: build.log
           retention-days: 7
           if-no-files-found: ignore
 
-
-      # --------------------------------------
+      # ======================================
       # UPLOAD APK
-      # --------------------------------------
-      - name: Unggah APK sebagai artefak
+      # ======================================
+      - name: Unggah sebagai artefak
         uses: actions/upload-artifact@v4
-
         with:
           name: TimerMaxdis-apk
-
           path: dist/*.apk
-
           if-no-files-found: error
-
           retention-days: 30
 
-
-      # --------------------------------------
+      # ======================================
       # GITHUB RELEASE
-      # --------------------------------------
+      # ======================================
       - name: Terbitkan APK di halaman Releases
-
-        # Release hanya untuk tag v* atau build manual.
-        # Push biasa ke main cukup menghasilkan Artifact.
-
-        if: >-
-          ${{
-            startsWith(github.ref, 'refs/tags/v') ||
-            github.event_name == 'workflow_dispatch'
-          }}
+        # Tag v* membuat release biasa.
+        # Run manual membuat pre-release.
+        # Push ke main hanya menghasilkan Artifact.
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
 
         uses: softprops/action-gh-release@v2
 
         with:
-
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
 
           target_commitish: ${{ github.sha }}
