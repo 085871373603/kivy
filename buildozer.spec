@@ -1,5 +1,5 @@
 [app]
-title = TIMER MAKDIS KIVY
+title = TIMER MAKDIS
 package.name = timermaxdis
 package.domain = org.timermaxdis
 source.dir = .
