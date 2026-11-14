@@ -198,7 +198,7 @@ jobs:
 
             echo "Memulai build APK release..."
 
-            buildozer -v android release 2>&1 | tee build.log
+            buildozer -v android release 2>&1 | tee -a build.log
 
           else
 
@@ -206,7 +206,7 @@ jobs:
 
             echo "Memulai build APK debug..."
 
-            buildozer -v android debug 2>&1 | tee build.log
+            buildozer -v android debug 2>&1 | tee -a build.log
 
           fi
 
